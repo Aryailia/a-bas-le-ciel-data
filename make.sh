@@ -68,7 +68,33 @@ _make() {
       ;; supplement-subs)   supplement_subs
       ;; make-sample)
         jq '[limit(123; .[])]' "${FINAL}" >"../a-bas-le-ciel/video.json"
-      ;; *)
+        cp "${PLAYLIST}" "../a-bas-le-ciel/playlist.json"
+
+      ;; remotes)
+        git remote remove origin     2>/dev/null
+        git remote remove origin-ssh 2>/dev/null
+        git remote add origin     'https://github.com/Aryailia/a-bas-le-ciel-data.git'
+        git remote add origin-ssh 'git@github.com:Aryailia/a-bas-le-ciel-data.git'
+        git remote --verbose
+
+      ;; publish)
+        publish="./publish"
+        [ -n "$( git status --short )" ] && die FATAL 1 \
+          "Please commit changes before updating"
+        [ -d "${publish}" ] && die FATAL 1 \
+          "The directory '${publish}' exists but was reserved"
+
+        #_make compile mark-done
+        cp -r "${OUT_DIR}" "${publish}"
+        git add .
+        git commit -m 'publishing compiled'
+        git subtree split --prefix "publish" --branch='compiled'
+        git reset HEAD^
+        rm -r "${publish}"
+        GIT_SSH_COMMAND="ssh -i ~/.ssh/a-bas-le-ciel-data -o StrictHostKeyChecking=no " \
+          git push -f origin-ssh compiled
+
+      ;; *)  die FATAL 1 "Inavlid command \`${NAME} ${arg}\`"
     esac
   done
   [ "$#" = 0 ] && { show_help; exit 1; }
