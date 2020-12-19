@@ -19,6 +19,10 @@ EOF
 NL='
 '
 
+ytdl() {
+  youtube-dlc -4 "$@"
+}
+
 main() {
   MAKE_DIR="$( dirname "${0}"; printf a )"; MAKE_DIR="${MAKE_DIR%?a}"
   cd "${MAKE_DIR}" || exit "$?"
@@ -39,14 +43,22 @@ main() {
   #'https://www.youtube.com/watch?v=wu-_H0O5zfM&list=UUWPKJM4CT6ES2BrUz9wbELw'
   #'https://www.youtube.com/watch?v=c7M-_hKL0Yw'
 
-  #run: sh % compile
+  #run: sh % download2
+  mkdir -p "${NEW_DIR}" "${OLD_DIR}" "${SUB_DIR}" "${OUT_DIR}"
+  _make "$@"
+}
+
+_make() {
   for arg in "$@"; do
     case "${arg}"
       in download)
         mkdir -p "${NEW_DIR}" "${SUB_DIR}"
         channel_url='https://www.youtube.com/user/HeiJinZhengZhi'
-        download_videos "${channel_url}" "${NEW_DIR}" "${SUB_DIR}"
+        download_by_channel "${channel_url}" "${NEW_DIR}" "${SUB_DIR}"
         download_playlists "${channel_url}"
+      ;; download2)
+        mkdir -p "${NEW_DIR}" "${SUB_DIR}"
+        download_by_rss
 
       ;; update)            compile false
       ;; force-update)      compile true
@@ -66,24 +78,60 @@ move_to_old() {
   mv "${NEW_DIR}/${1}" "${OLD_DIR}/${1}" || exit "$?"
 }
 
+################################################################################
+move_subs_from_to() {
+  for path in "${1}"/* "${1}"/.[!.]* "${1}"/..?*; do
+    [ -e "${path}" ] || continue
+    if [ "${path}" != "${path%.vtt}" ]; then
+      mv "${path}" "${2}/"
+    fi
+  done
+}
+
 # Clears error log everytime this runs
-download_videos() {
+download_by_rss() {
+  errors="errors.log"
+  printf %s '' >"${errors}"
+
+  for id in $(
+    # so this fits on one line
+    rss='https://www.youtube.com/feeds/videos.xml?channel_id='
+    errln "Curling channel rss feed..."
+
+    curl -L "${rss}UCWPKJM4CT6ES2BrUz9wbELw" \
+    | awk '$0 ~ "<link.*href=\"https://www.youtube.com/watch" {
+      gsub("^.*href=\"https://www.youtube.com/watch\?v=", "");
+      gsub(/".*/, "");
+      print $0;
+    }'
+  ); do
+    if [ ! -e "${OLD_DIR}/${id}.info.json" ]; then
+      ytdl --write-info-json --skip-download --ignore-errors \
+        --sub-lang en --write-auto-sub \
+        --output "${NEW_DIR}/%(id)s" \
+        "https://www.youtube.com/watch?v=${id}" \
+      2>>"${errors}"
+    fi
+  done
+  move_subs_from_to "${NEW_DIR}" "${SUB_DIR}"
+}
+
+# Clears error log everytime this runs
+download_by_channel() {
   # $1: channel url
 
   errors="errors.log"
 
   printf %s '' >"${errors}"
-  #youtube-dl --write-info-json --write-auto-sub --skip-download --ignore-errors \
-  #  --download-archive "${ARCHIVE}" \
-  #  --output "${2}/%(id)s" \
-  #  "${1}" \
-  #  2>>"${errors}"
-  youtube-dl --write-auto-sub --skip-download --ignore-errors \
+  ytdl --write-info-json --skip-download --ignore-errors \
+    --write-auto-sub --sub-lang en
     --download-archive "${ARCHIVE}" \
     --output "${2}/%(id)s" \
     "${1}" \
     2>>"${errors}"
+  move_subs_from_to "${NEW_DIR}" "${SUB_DIR}"
 }
+
 
 _playlists_to_json() {
   printf %s '['
@@ -92,13 +140,14 @@ _playlists_to_json() {
 }
 download_playlists() {
   #$1: channel url
-  youtube-dl --ignore-errors --dump-json --flat-playlist \
+  ytdl --ignore-errors --dump-json --flat-playlist \
     "${1}/playlists" \
     | _playlists_to_json \
     | jq 'sort_by(.title)' >"${OUT_DIR}/playlist.json"
 
 }
 
+################################################################################
 compile() {
   # $1: true/false, true to remake from scratch (parse all of ${OLD_DIR})
   #VIDEO_DIR="json"
@@ -194,6 +243,7 @@ join() {
   } | jq '.[0] + .[1] | sort_by(.upload_date) | reverse'
 }
 
+################################################################################
 verify_have_subs() {
   [ -r "${FINAL}" ] || die FATAL 1 "Missing '${FINAL}'" \
     ". Run \`${NAME} download update\`"
@@ -205,10 +255,11 @@ verify_have_subs() {
     id="${id%.en.vtt}"
     if [ ! -e "${OLD_DIR}/${id}.info.json" ]; then
       count="$(( count + 1 ))"
-      errln "${count}: ${sub}"
+      errln "${count}: '${sub}' has no corresponding info in '${OLD_DIR}'"
     fi
   done
-  [ "${count}" != '0' ] && die FATAL 1 "${count} extra transcript files"
+  [ "${count}" != '0' ] && die FATAL 1 "${count} extra transcript files" \
+    "Perhaps you forgot run \`${NAME} mark-done\`"
 
   list=''
   for id in $( jq --raw-output '.[].id' "${FINAL}" ); do
@@ -221,7 +272,8 @@ verify_have_subs() {
       count="$(( count + 1 ))"
       [ -e "${SUB_DIR}/${id}.en.vtt" ] || errln "${count}: ${id} has no en sub"
     done
-    die FATAL 1 "Missing ${count} transcripts"
+    die FATAL 1 "Missing ${count} transcripts" \
+      "Download missing ones with \`${NAME} supplement-subs\`"
   else
     errln "Seem to have adequate number of transcripts"
   fi
@@ -240,14 +292,13 @@ supplement_subs() {
     count='0'
     for id in ${list}; do
       count="$(( count + 1 ))"
-      [ -e "${SUB_DIR}/${id}.en.vtt" ] || youtube-dl \
+      [ -e "${SUB_DIR}/${id}.en.vtt" ] || ytdl \
         --write-auto-sub --skip-download --ignore-errors \
         --output "${SUB_DIR}/%(id)s" \
         "https://www.youtube.com/watch?v=${id}" \
       # end
     done
     verify_have_subs
-    exit 1
   fi
 }
 
