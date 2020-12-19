@@ -86,6 +86,8 @@ _make() {
 
         #_make compile mark-done
         cp -r "${OUT_DIR}" "${publish}"
+        cp -r "${SUB_DIR}" "${publish}/"
+        git branch --delete 'compiled' --force
         git add .
         git commit -m 'publishing compiled'
         git subtree split --prefix "publish" --branch='compiled'
