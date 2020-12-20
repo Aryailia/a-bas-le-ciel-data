@@ -1,1 +1,5 @@
+compiled/*
+!compiled/.github/
+
+output.json
 errors.log

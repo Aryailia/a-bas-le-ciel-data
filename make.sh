@@ -8,17 +8,25 @@ SYNOPSIS
   ${NAME} <subcommand1> [<subcommand> ...]
 
 SUBCOMMANDS
-  download      Downloads info and subs, not
-  update        Incrementally update the output json
-  force-update  Rebuild entire output json
-  mark-done     Move the files from '\'
-  help          Display this menu
+  help              Display this menu
+  download-channel  ownloads info and subs, not
+  download-rss      Downloads info and subs, not
+  compile           Incrementally update the output json
+  force-compile     Rebuild entire output json
+  mark-done         Move the files from '\'
+  compile
+  force-compile
+  verify-have-subs
+  supplement-subs
+  cron
+  sample
 EOF
 }
 
 NL='
 '
 
+# --write-auto-sub not working in newest youtube-dl (15 Dec 2020)
 ytdl() {
   youtube-dlc -4 "$@"
 }
@@ -28,78 +36,115 @@ main() {
   cd "${MAKE_DIR}" || exit "$?"
   MAKE_DIR="$( pwd -P; printf a )"; MAKE_DIR="${MAKE_DIR%?a}"
 
-
   OLD_DIR="./json"
   NEW_DIR="./new"
   SUB_DIR="./transcripts"
   OUT_DIR="./compiled"
+  PUBLISH="./publish"
 
   INTERIM="./output.json"
   FINAL="${OUT_DIR}/video.json"
   ARCHIVE="./archive.txt"
   ARCHIVE2="./archive2.txt"
 
+  CHANNEL_URL='https://www.youtube.com/user/HeiJinZhengZhi'
+
   #'https://www.youtube.com/user/HeiJinZhengZhi'
   #'https://www.youtube.com/watch?v=wu-_H0O5zfM&list=UUWPKJM4CT6ES2BrUz9wbELw'
   #'https://www.youtube.com/watch?v=c7M-_hKL0Yw'
 
-  #run: sh % download2
+  # implement flags (force flag)
+
+  #run: sh % cron
   mkdir -p "${NEW_DIR}" "${OLD_DIR}" "${SUB_DIR}" "${OUT_DIR}"
   _make "$@"
 }
 
 _make() {
   for arg in "$@"; do
+    errln "" "Running \`${NAME} ${arg}\`"
     case "${arg}"
-      in download)
+      in help)              show_help
+
+      ;; download-channel)
         mkdir -p "${NEW_DIR}" "${SUB_DIR}"
-        channel_url='https://www.youtube.com/user/HeiJinZhengZhi'
-        download_by_channel "${channel_url}" "${NEW_DIR}" "${SUB_DIR}"
-        download_playlists "${channel_url}"
-      ;; download2)
+        download_by_channel "${CHANNEL_URL}" "${NEW_DIR}" "${SUB_DIR}"
+        download_playlists "${CHANNEL_URL}"
+
+      ;; download-rss)
         mkdir -p "${NEW_DIR}" "${SUB_DIR}"
         download_by_rss
+        download_playlists "${CHANNEL_URL}"
 
-      ;; update)            compile false
-      ;; force-update)      compile true
-      ;; mark-done)         for_each "${NEW_DIR}" move_to_old
-      ;; help)              show_help
+      ;; compile)           compile false
+      ;; force-compile)     compile true
       ;; verify-have-subs)  verify_have_subs
       ;; supplement-subs)   supplement_subs
+
+      ;; cron)
+        # 'mark-done' will skip the 'publish' step if no new files
+        #_make download-rss compile mark-done publish
+        # 'false' is just a no-op
+
+      ;; mark-done)
+        count='0'
+        for file in "${NEW_DIR}"/* "${NEW_DIR}"/.[!.]* "${NEW_DIR}"/..?*; do
+          [ -e "${file}" ] || continue
+          count="$(( count + 1 ))"
+        done
+        [ "${count}" = '0' ] && die FATAL 1 "No files in '${NEW}' processed"
+        for_each "${NEW_DIR}" move_to_old
+
+        
       ;; make-sample)
         jq '[limit(123; .[])]' "${FINAL}" >"../a-bas-le-ciel/video.json"
         cp "${PLAYLIST}" "../a-bas-le-ciel/playlist.json"
 
-      ;; remotes)
-        git remote remove origin     2>/dev/null
-        git remote remove origin-ssh 2>/dev/null
-        git remote add origin     'https://github.com/Aryailia/a-bas-le-ciel-data.git'
-        git remote add origin-ssh 'git@github.com:Aryailia/a-bas-le-ciel-data.git'
-        git remote --verbose
-
       ;; publish)
-        publish="./publish"
-        [ -n "$( git status --short )" ] && die FATAL 1 \
-          "Please commit changes before updating"
-        [ -d "${publish}" ] && die FATAL 1 \
-          "The directory '${publish}' exists but was reserved"
-
-        #_make compile mark-done
-        cp -r "${OUT_DIR}" "${publish}"
-        cp -r "${SUB_DIR}" "${publish}/"
-        git branch --delete 'compiled' --force
-        git add .
-        git commit -m 'publishing compiled'
-        git subtree split --prefix "publish" --branch='compiled'
-        git reset HEAD^
-        rm -r "${publish}"
-        GIT_SSH_COMMAND="ssh -i ~/.ssh/a-bas-le-ciel-data -o StrictHostKeyChecking=no " \
-          git push -f origin-ssh compiled
+        ssh_push_subtree "./compiled" compiled 'a-bas-le-ciel-data' \
+          'git@github.com:Aryailia/a-bas-le-ciel-data.git' \
+          copy_transcripts_to_published
+        # end
 
       ;; *)  die FATAL 1 "Inavlid command \`${NAME} ${arg}\`"
     esac
   done
+  exit
   [ "$#" = 0 ] && { show_help; exit 1; }
+}
+
+ssh_push_subtree() {
+  # $1: the directory
+  # $2: the branch name
+  # $3: private key name
+  # $4: remote ssh url tag
+  # $5: extra commands to run after checks
+
+  [ -n "$( git status --short )" ] && die FATAL 1 \
+    "Please commit changes before updating"
+  [ -d "${publish}" ] && die FATAL 1 \
+    "The directory '${publish}' exists but was reserved"
+
+
+  cp -r "${1}" "${PUBLISH}"
+  "${5}"
+  git branch --force --delete "${2}"
+  git add "${PUBLISH}"
+  git commit -m 'publishing'
+  git subtree split --prefix "${PUBLISH#./}" --branch="${2}"
+  git reset HEAD^
+  rm -r "${PUBLISH}"
+  settings="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  GIT_SSH_COMMAND="ssh -i '${HOME}/.ssh/${3}' ${settings}" \
+    git push -f "${4}" "${2}"
+}
+
+copy_transcripts_to_published() {
+  # Github uses the actions on the branch that is being pushed
+  # See: https://stackoverflow.com/questions/64565482
+  #cp -r ".github" "${PUBLISH}/";
+  #cp -r "${SUB_DIR}" "${PUBLISH}/";
+  :
 }
 
 move_to_old() {
@@ -127,11 +172,11 @@ download_by_rss() {
     errln "Curling channel rss feed..."
 
     curl -L "${rss}UCWPKJM4CT6ES2BrUz9wbELw" \
-    | awk '$0 ~ "<link.*href=\"https://www.youtube.com/watch" {
-      gsub("^.*href=\"https://www.youtube.com/watch\?v=", "");
-      gsub(/".*/, "");
-      print $0;
-    }'
+      | awk '$0 ~ "<link.*href=\"https://www.youtube.com/watch" {
+        gsub("^.*href=\"https://www.youtube.com/watch\?v=", "");
+        gsub(/".*/, "");
+        print $0;
+      }'
   ); do
     if [ ! -e "${OLD_DIR}/${id}.info.json" ]; then
       ytdl --write-info-json --skip-download --ignore-errors \
@@ -152,7 +197,7 @@ download_by_channel() {
 
   printf %s '' >"${errors}"
   ytdl --write-info-json --skip-download --ignore-errors \
-    --write-auto-sub --sub-lang en
+    --write-auto-sub --sub-lang en \
     --download-archive "${ARCHIVE}" \
     --output "${2}/%(id)s" \
     "${1}" \
