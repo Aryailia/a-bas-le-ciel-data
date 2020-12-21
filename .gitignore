@@ -1,4 +1,4 @@
-publish/video.json
+publish/*
+!publish/playlist.json
 pip/
-output.json
 errors.log

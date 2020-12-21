@@ -31,6 +31,7 @@ jobs:
         env:
           SSH_AUTH_SOCKET: /tmp/ssh_agent.sock
         run: |
+          rm .gitignore
           git add publish
           git config user.email "Bot@users.noreply.github.com"
           git config user.name "Continuous Integration Bot"
