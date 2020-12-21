@@ -38,16 +38,15 @@ main() {
   cd "${MAKE_DIR}" || exit "$?"
   MAKE_DIR="$( pwd -P; printf a )"; MAKE_DIR="${MAKE_DIR%?a}"
 
-  OLD_DIR="./json"
+  INFO_DIR="./json"
   NEW_DIR="./new"
   SUB_DIR="./subtitles"
-  OUT_DIR="./compiled"
   PUBLISH="./publish"
 
   INTERIM="./output.json"
-  FINAL="${OUT_DIR}/video.json"
+  FINAL="${PUBLISH}/video.json"
+  PLAYLIST="${PUBLISH}/playlist.json"
   ARCHIVE="./archive.txt"
-  ARCHIVE2="./archive2.txt"
 
   CHANNEL_URL='https://www.youtube.com/user/HeiJinZhengZhi'
 
@@ -58,7 +57,7 @@ main() {
   # implement flags (force flag)
 
   #run: sh % cron
-  mkdir -p "${NEW_DIR}" "${OLD_DIR}" "${SUB_DIR}" "${OUT_DIR}"
+  mkdir -p "${NEW_DIR}" "${INFO_DIR}" "${SUB_DIR}" "${PUBLISH}"
   _make "$@"
 }
 
@@ -72,26 +71,18 @@ _make() {
                                     "${NEW_DIR}" "${SUB_DIR}"
       ;; download-rss)            download_by_rss
       ;; download-playlist-list)  download_playlist_list "${CHANNEL_URL}"
-      ;; compile)                 node parse-info.mjs "${OLD_DIR}" "${FINAL}"
-      #;; compile)                 compile false
-      #;; force-compile)           compile true
+      ;; compile)                 node parse-info.mjs "${INFO_DIR}" "${FINAL}"
+      ;; mark-done)               mark_done
       ;; verify-have-subs)        verify_have_subs
       ;; supplement-subs)         supplement_subs
       ;; clean-publish)           rm -r "${PUBLISH}"
 
       ;; cron)
         # 'mark-done' will skip the 'publish' step if no new files
-        #_make download-rss download-playlist-list compile mark-done publish
-        #_make prepare-publish clean-publish
-
-      ;; mark-done)
-        count='0'
-        for file in "${NEW_DIR}"/* "${NEW_DIR}"/.[!.]* "${NEW_DIR}"/..?*; do
-          [ -e "${file}" ] || continue
-          count="$(( count + 1 ))"
-        done
-        [ "${count}" = '0' ] && die FATAL 1 "No files in '${NEW}' processed"
-        for_each "${NEW_DIR}" move_to_old
+        _make download-rss download-playlist-list mark-done || exit 0
+        git add "${INFO_DIR}" "${SUB_DIR}" "${PUBLISH}"
+        git commit -m "update $( date "+%Y-%m-%d" )"
+        git push origin master
 
       ;; sample)
         _make compile
@@ -99,11 +90,10 @@ _make() {
         cp "${PLAYLIST}" "../a-bas-le-ciel/playlist.json"
 
       ;; prepare-publish)
-        rm -r "${PUBLISH}"
+        rm -r "${PUBLISH}/transcripts" 2>/dev/null
         mkdir -p "${PUBLISH}/transcripts"
-        cp "${FINAL}" "${PUBLISH}/"
-        cp "${PLAYLIST}" "${PUBLISH}/"
         node './parse-subs.mjs' "${SUB_DIR}" "${PUBLISH}/transcripts"
+        _make compile
 
       ;; *)  die FATAL 1 "Inavlid command \`${NAME} ${arg}\`"
     esac
@@ -147,9 +137,6 @@ _make() {
 #    git push -f "${4}" "${2}"
 #}
 
-move_to_old() {
-  mv "${NEW_DIR}/${1}" "${OLD_DIR}/${1}" || exit "$?"
-}
 
 ################################################################################
 move_subs_from_to() {
@@ -178,7 +165,7 @@ download_by_rss() {
         print $0;
       }'
   ); do
-    if [ ! -e "${OLD_DIR}/${id}.info.json" ]; then
+    if [ ! -e "${INFO_DIR}/${id}.info.json" ]; then
       ytdl --write-info-json --skip-download --ignore-errors \
         --sub-lang en --write-auto-sub \
         --output "${NEW_DIR}/%(id)s" \
@@ -213,12 +200,38 @@ download_playlist_list() {
   printf %s\\n "${dump}" | jq --slurp 'sort_by(.title)' >"${PLAYLIST}"
 }
 
+################################################################################
+mark_done() {
+  #####
+  count='0'
+  for file in "${NEW_DIR}"/* "${NEW_DIR}"/.[!.]* "${NEW_DIR}"/..?*; do
+    [ -e "${file}" ] || continue
+    count="$(( count + 1 ))"
+  done
+  [ "${count}" = '0' ] && die "No files in '${NEW}' processed" 0
+
+  errln "Archive before: $( <"${ARCHIVE}" wc -l ) entries"
+  move_to_old() { mv "${NEW_DIR}/${1}" "${INFO_DIR}/${1}" || exit "$?"; }
+  for_each "${NEW_DIR}" move_to_old
+  format_to_archive() { printf %s\\n "youtube ${1%.info.json}"; }
+  for_each "${INFO_DIR}" format_to_archive | sort | uniq >"${ARCHIVE}"
+  errln "Archive after:  $( <"${ARCHIVE}" wc -l ) entries"
+}
+
+for_each() {
+  _dir="${1}"
+  shift 1
+  for f in "${_dir}"/* "${_dir}"/.[!.]* "${_dir}"/..?*; do
+    [ ! -f "${f}" ] && continue
+    _name="${f##*/}"
+    "$@" "${_name}"
+  done
+}
 # replaced this with a node application
 # $ compile true
 # $ compile false
-################################################################################
 #compile() {
-#  # $1: true/false, true to remake from scratch (parse all of ${OLD_DIR})
+#  # $1: true/false, true to remake from scratch (parse all of ${INFO_DIR})
 #  #VIDEO_DIR="json"
 #  #####
 #  # Update ${FINAL}
@@ -227,8 +240,8 @@ download_playlist_list() {
 #    else _is_recompile='false'
 #  fi
 #  if "${_is_recompile}"; then
-#    errln "Extracting video json '${OLD_DIR}' -> '${INTERIM}'"
-#    extract "${OLD_DIR}" >"${INTERIM}" || exit "$?"
+#    errln "Extracting video json '${INFO_DIR}' -> '${INTERIM}'"
+#    extract "${INFO_DIR}" >"${INTERIM}" || exit "$?"
 #  elif [ -e "${FINAL}" ]; then
 #    errln "Updating old video json '${FINAL}' -> '${INTERIM}'"
 #    #cp "${FINAL}" "${INTERIM}" || exit "$?"
@@ -244,7 +257,7 @@ download_playlist_list() {
 #  format_to_archive() { printf %s\\n "youtube ${1%.info.json}"; }
 #  {
 #    if "${_is_recompile}" || [ ! -e "${ARCHIVE}" ]
-#      then for_each "${OLD_DIR}" format_to_archive
+#      then for_each "${INFO_DIR}" format_to_archive
 #      else cat "${ARCHIVE}"
 #    fi
 #    for_each "${NEW_DIR}" format_to_archive
@@ -253,15 +266,6 @@ download_playlist_list() {
 #  errln "Archive after:  $( <"${ARCHIVE}" wc -l ) entries"
 #}
 #
-#for_each() {
-#  _dir="${1}"
-#  shift 1
-#  for f in "${_dir}"/* "${_dir}"/.[!.]* "${_dir}"/..?*; do
-#    [ ! -f "${f}" ] && continue
-#    _name="${f##*/}"
-#    "$@" "${_name}"
-#  done
-#}
 #format_json() {
 #  jq '.
 #    | select(.uploader_id == "HeiJinZhengZhi" )
@@ -318,9 +322,9 @@ verify_have_subs() {
     [ -e "${sub}" ] || continue
     id="${sub##*/}"
     id="${id%.en.vtt}"
-    if [ ! -e "${OLD_DIR}/${id}.info.json" ]; then
+    if [ ! -e "${INFO_DIR}/${id}.info.json" ]; then
       count="$(( count + 1 ))"
-      errln "${count}: '${sub}' has no corresponding info in '${OLD_DIR}'"
+      errln "${count}: '${sub}' has no corresponding info in '${INFO_DIR}'"
     fi
   done
   [ "${count}" != '0' ] && die FATAL 1 "${count} extra transcript files" \
