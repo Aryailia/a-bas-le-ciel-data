@@ -1,3 +1,4 @@
-compiled
+compiled/
+pip/
 output.json
 errors.log

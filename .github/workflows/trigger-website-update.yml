@@ -26,8 +26,9 @@ jobs:
 
       - name: Compile to "./publish"
         run: |
-          sudo pip3 install youtube-dlc
-          /bin/sh make.sh download-playlist-list compile
+          sudo pip3 install youtube-dl youtube-dlc
+          /bin/sh make.sh download-playlist-list
+          /bin/sh make.sh compile
           /bin/sh make.sh prepare-publish
 
       - name: Push to compiled branch

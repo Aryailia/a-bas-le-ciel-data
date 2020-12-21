@@ -28,6 +28,7 @@ NL='
 '
 
 # --write-auto-sub not working in newest youtube-dl (15 Dec 2020)
+# BUG: 'youtube-dlc' does not provide title or id for playlists download
 ytdl() {
   youtube-dlc -4 "$@" || exit "$?"
 }
@@ -71,8 +72,9 @@ _make() {
                                     "${NEW_DIR}" "${SUB_DIR}"
       ;; download-rss)            download_by_rss
       ;; download-playlist-list)  download_playlist_list "${CHANNEL_URL}"
-      ;; compile)                 compile false
-      ;; force-compile)           compile true
+      ;; compile)                 node parse-info.mjs "${OLD_DIR}" "${FINAL}"
+      #;; compile)                 compile false
+      #;; force-compile)           compile true
       ;; verify-have-subs)        verify_have_subs
       ;; supplement-subs)         supplement_subs
       ;; clean-publish)           rm -r "${PUBLISH}"
@@ -91,7 +93,8 @@ _make() {
         [ "${count}" = '0' ] && die FATAL 1 "No files in '${NEW}' processed"
         for_each "${NEW_DIR}" move_to_old
 
-      ;; make-sample)
+      ;; sample)
+        _make compile
         jq '[limit(123; .[])]' "${FINAL}" >"../a-bas-le-ciel/video.json"
         cp "${PLAYLIST}" "../a-bas-le-ciel/playlist.json"
 
@@ -105,8 +108,8 @@ _make() {
       ;; *)  die FATAL 1 "Inavlid command \`${NAME} ${arg}\`"
     esac
   done
-  exit
-  [ "$#" = 0 ] && { show_help; exit 1; }
+  # need 'if' to exit with 0 on no error
+  if [ "$#" = 0 ]; then show_help; exit 1; fi
 }
 
   ## Github uses the actions on the branch that is being pushed
@@ -202,115 +205,108 @@ download_by_channel() {
   move_subs_from_to "${NEW_DIR}" "${SUB_DIR}"
 }
 
-
-_playlists_to_json() {
-  printf %s '['
-  <&0 sed 's/$/,/' | sed '$s/,$//'
-  printf %s ']'
-}
 download_playlist_list() {
-  #$1: channel url
-  ytdl --ignore-errors --dump-json --flat-playlist \
-    "${1}/playlists" \
-    | _playlists_to_json \
-    | jq 'sort_by(.title)' >"${OUT_DIR}/playlist.json"
-
+  # $1: channel url
+  # BUG: 'youtube-dlc' does not provide title or id
+  dump="$( youtube-dl -4 --ignore-errors --dump-json --flat-playlist \
+    "${1}/playlists" )"
+  printf %s\\n "${dump}" | jq --slurp 'sort_by(.title)' >"${PLAYLIST}"
 }
 
+# replaced this with a node application
+# $ compile true
+# $ compile false
 ################################################################################
-compile() {
-  # $1: true/false, true to remake from scratch (parse all of ${OLD_DIR})
-  #VIDEO_DIR="json"
-  #####
-  # Update ${FINAL}
-  if "${1}" || [ ! -e "${INTERIM}" ]
-    then _is_recompile='true'
-    else _is_recompile='false'
-  fi
-  if "${_is_recompile}"; then
-    errln "Extracting video json '${OLD_DIR}' -> '${INTERIM}'"
-    extract "${OLD_DIR}" >"${INTERIM}" || exit "$?"
-  elif [ -e "${FINAL}" ]; then
-    errln "Updating old video json '${FINAL}' -> '${INTERIM}'"
-    cp "${FINAL}" "${INTERIM}" || exit "$?"
-  fi
-  errln "Outputting to '${OUT_DIR}/video.json'"
-  join "${INTERIM}" "${NEW_DIR}" >"${OUT_DIR}/video.json"
-
-  #####
-  # Update ${ARCHIVE}
-  # Walk dir instead of using jq on ${FINAL} to skip videos also
-  # archive vidoes not uploaded by uploader
-  errln "Archive before: $( <"${ARCHIVE}" wc -l ) entries"
-  format_to_archive() { printf %s\\n "youtube ${1%.info.json}"; }
-  {
-    if "${_is_recompile}" || [ ! -e "${ARCHIVE}" ]
-      then for_each "${OLD_DIR}" format_to_archive
-      else cat "${ARCHIVE}"
-    fi
-    for_each "${NEW_DIR}" format_to_archive
-  } | sort | uniq >"${ARCHIVE2}"
-  mv "${ARCHIVE2}" "${ARCHIVE}"
-  errln "Archive after:  $( <"${ARCHIVE}" wc -l ) entries"
-}
-
-for_each() {
-  _dir="${1}"
-  shift 1
-  for f in "${_dir}"/* "${_dir}"/.[!.]* "${_dir}"/..?*; do
-    [ ! -f "${f}" ] && continue
-    _name="${f##*/}"
-    "$@" "${_name}"
-  done
-}
-format_json() {
-  jq '.
-    | select(.uploader_id == "HeiJinZhengZhi" )
-    | {
-      id: .id,
-      url: .webpage_url,
-      upload_date: .upload_date,
-      title: .title,
-      description: .description,
-      # There are two relevant fields ".thumbnail" and ".thumbnails"
-      thumbnail: .thumbnails | map(select(.width == 336))[0].url,
-    }
-  ' "${1}"
-}
-
-extract() {
-  delim=''  # Because we are doing a join, avoid initial comma
-  count='0'
-
-  printf %s "["
-  for filename in "${1}"/* "${1}"/.[!.]* "${1}"/..?*; do
-    [ ! -f "${filename}" ] && continue
-    count="$(( count + 1 ))"
-    printf %s\\n "Processing ${count}: ${filename##*/}" >&2
-
-    extracted="$( format_json "${filename}"  )"
-
-    if [ -n "${extracted}" ]; then
-      printf %s "${delim}"
-      delim=','
-      printf %s "${extracted}"
-    fi
-  done
-  printf %s "]"
-}
-
-join() {
-  # $1: old output.json
-  # $2: directory for newely download
-  [ -d "${2}" ] || die FATAL 1 "Invalid directory '${2}' for newly downloaded"
-  {
-    printf '['
-    cat "${1}"
-    printf %s ','
-    extract "${2}"
-    printf %s ']'
-  } | jq '.[0] + .[1] | sort_by(.upload_date) | reverse'
-}
+#compile() {
+#  # $1: true/false, true to remake from scratch (parse all of ${OLD_DIR})
+#  #VIDEO_DIR="json"
+#  #####
+#  # Update ${FINAL}
+#  if "${1}" || [ ! -e "${INTERIM}" ]
+#    then _is_recompile='true'
+#    else _is_recompile='false'
+#  fi
+#  if "${_is_recompile}"; then
+#    errln "Extracting video json '${OLD_DIR}' -> '${INTERIM}'"
+#    extract "${OLD_DIR}" >"${INTERIM}" || exit "$?"
+#  elif [ -e "${FINAL}" ]; then
+#    errln "Updating old video json '${FINAL}' -> '${INTERIM}'"
+#    #cp "${FINAL}" "${INTERIM}" || exit "$?"
+#  fi
+#  errln "Outputting to '${OUT_DIR}/video.json'"
+#  join "${INTERIM}" "${NEW_DIR}" >"${OUT_DIR}/video.json"
+#
+#  #####
+#  # Update ${ARCHIVE}
+#  # Walk dir instead of using jq on ${FINAL} to skip videos also
+#  # archive vidoes not uploaded by uploader
+#  errln "Archive before: $( <"${ARCHIVE}" wc -l ) entries"
+#  format_to_archive() { printf %s\\n "youtube ${1%.info.json}"; }
+#  {
+#    if "${_is_recompile}" || [ ! -e "${ARCHIVE}" ]
+#      then for_each "${OLD_DIR}" format_to_archive
+#      else cat "${ARCHIVE}"
+#    fi
+#    for_each "${NEW_DIR}" format_to_archive
+#  } | sort | uniq >"${ARCHIVE2}"
+#  mv "${ARCHIVE2}" "${ARCHIVE}"
+#  errln "Archive after:  $( <"${ARCHIVE}" wc -l ) entries"
+#}
+#
+#for_each() {
+#  _dir="${1}"
+#  shift 1
+#  for f in "${_dir}"/* "${_dir}"/.[!.]* "${_dir}"/..?*; do
+#    [ ! -f "${f}" ] && continue
+#    _name="${f##*/}"
+#    "$@" "${_name}"
+#  done
+#}
+#format_json() {
+#  jq '.
+#    | select(.uploader_id == "HeiJinZhengZhi" )
+#    | {
+#      id: .id,
+#      url: .webpage_url,
+#      upload_date: .upload_date,
+#      title: .title,
+#      description: .description,
+#      # There are two relevant fields ".thumbnail" and ".thumbnails"
+#      thumbnail: .thumbnails | map(select(.width == 336))[0].url,
+#    }
+#  ' "${1}"
+#}
+#
+#extract() {
+#  delim=''  # Because we are doing a join, avoid initial comma
+#  count='0'
+#
+#  printf %s "["
+#  for filename in "${1}"/* "${1}"/.[!.]* "${1}"/..?*; do
+#    [ ! -f "${filename}" ] && continue
+#    count="$(( count + 1 ))"
+#    printf %s\\n "Processing ${count}: ${filename##*/}" >&2
+#
+#    extracted="$( format_json "${filename}"  )"
+#
+#    if [ -n "${extracted}" ]; then
+#      printf %s "${delim}"
+#      delim=','
+#      printf %s "${extracted}"
+#    fi
+#  done
+#  printf %s "]"
+#}
+#
+#join() {
+#  # $1: old output.json
+#  # $2: directory for newely download
+#  [ -d "${2}" ] || die FATAL 1 "Invalid directory '${2}' for newly downloaded"
+#  extract "${2}" | jq \
+#    '.[0] + .[1] | sort_by(.upload_date) | reverse' \
+#    --slurp  "${1}" - \
+#  # end
+#}
 
 ################################################################################
 verify_have_subs() {
