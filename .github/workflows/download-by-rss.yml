@@ -1,7 +1,7 @@
 name: Video metadata weekly download
 on:
   schedule:
-    - cron: "0 13 * * 6"  # Once a week on Sunday at 13:00
+    - cron: "0 13 * * 1"  # Once a week on Tuesday at 13:00
 
 jobs:
   download_new_videos:
