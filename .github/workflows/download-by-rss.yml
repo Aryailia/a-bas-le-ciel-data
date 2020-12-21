@@ -1,10 +1,10 @@
-name: Trigger update aryailia.github.io github action
+name: Video metadata weekly download
 on:
   schedule:
     - cron: "0 13 * * 6"  # Once a week on Sunday at 13:00
 
 jobs:
-  trigger_website_update:
+  download_new_videos:
     runs-on: ubuntu-latest
     steps:
       - name: Cloning master -> vm "./"
@@ -22,7 +22,7 @@ jobs:
           ${{ secrets.RUNNER_PRIVATE_KEY }}
           EOF
 
-      - name: Download updates
+      - name: Download updates, commit, and push
         env:
           SSH_AUTH_SOCKET: /tmp/ssh_agent.sock
         run: |
