@@ -46,7 +46,8 @@ main() {
   SUB_DIR="./subtitles"
   PUBLISH="./publish"
 
-  INTERIM="./output.json"
+  #INTERIM="./output.json"
+  DATA_BRANCH="data"
   FINAL="${PUBLISH}/video.json"
   TRANSCRIPTS="${PUBLISH}/transcripts.json"
   PLAYLISTS="${PUBLISH}/playlist.json"
@@ -60,7 +61,7 @@ main() {
 
   # implement flags (force flag)
 
-  #run: sh % cron
+  #run: sh % compile
   mkdir -p "${NEW_DIR}" "${INFO_DIR}" "${SUB_DIR}" "${PUBLISH}"
   _make "$@"
 }
@@ -74,7 +75,8 @@ _make() {
       ;; download-channel)        download_by_channel
       ;; download-rss)            download_by_rss
       ;; download-playlist-list)  download_playlist_list
-      ;; compile)                 node parse-info.mjs "${INFO_DIR}" "${FINAL}"
+      ;; compile)                 git show master:parse-info.mjs \
+                                    | node - "${INFO_DIR}" "${FINAL}"
       ;; mark-done)               mark_done
       ;; verify-have-subs)        verify_have_subs
       ;; supplement-subs)         supplement_subs
@@ -86,19 +88,20 @@ _make() {
         _make download-rss download-playlist-list mark-done || exit "$?"
         git add "${INFO_DIR}" "${SUB_DIR}" "${PUBLISH}"
         git commit -m "update $( date "+%Y-%m-%d" )"
-        git push origin master
+        git push origin "${DATA_BRANCH}"
 
       ;; sample)
         _make prepare-publish
         jq '[limit(123; .[])]' "${FINAL}" >"../a-bas-le-ciel/video.json"
-        jq '[limit(123; .[])]' "${TRANSCRIPTS}" >"../a-bas-le-ciel/transcripts.json"
+        jq '[limit(123; .[])]' "${TRANSCRIPTS}" \
+          >"../a-bas-le-ciel/transcripts.json"
         cp "${PLAYLISTS}" "../a-bas-le-ciel/playlist.json"
         _make clean-publish
 
       ;; prepare-publish)
-        node './parse-subs.mjs' "${SUB_DIR}" "${TRANSCRIPTS}"
+        # rely on existing "${PLAYLISTS}"
+        git show master:parse-subs.mjs | node - "${SUB_DIR}" "${TRANSCRIPTS}"
         _make compile  # make "${FINAL}"
-        # rely on exiting "${PLAYLISTS}"
 
       ;; *)  die FATAL 1 "Inavlid command \`${NAME} ${arg}\`"
     esac
@@ -157,8 +160,14 @@ move_subs_from_to() {
   done
 }
 
+is_data_branch_or_exit() {
+  [ "$( git symbolic-ref -q HEAD )" = "refs/heads/data" ] \
+    || die FATAL 1 "Only download in 'data' branch"
+}
+
 # Clears error log everytime this runs
 download_by_rss() {
+  is_data_branch_or_exit
   errors="errors.log"
   printf %s '' >"${errors}"
 
@@ -188,6 +197,7 @@ download_by_rss() {
 
 # Clears error log everytime this runs
 download_by_channel() {
+  is_data_branch_or_exit
   errors="errors.log"
 
   printf %s '' >"${errors}"
@@ -201,6 +211,7 @@ download_by_channel() {
 }
 
 download_playlist_list() {
+  is_data_branch_or_exit
   # BUG: 'youtube-dlc' does not provide title or id
   # See: https://github.com/blackjack4494/yt-dlc/issues/288
   # TODO: Fix when this issue is resolved (should be resolved soon)
@@ -236,6 +247,13 @@ for_each() {
     "$@" "${_name}"
   done
 }
+
+
+compile() {
+  git show master:parse-info.mjs | node - "${INFO_DIR}" "${FINAL}"
+}
+
+
 # replaced this with a node application
 # $ compile true
 # $ compile false
@@ -257,22 +275,6 @@ for_each() {
 #  fi
 #  errln "Outputting to '${OUT_DIR}/video.json'"
 #  join "${INTERIM}" "${NEW_DIR}" >"${OUT_DIR}/video.json"
-#
-#  #####
-#  # Update ${ARCHIVE}
-#  # Walk dir instead of using jq on ${FINAL} to skip videos also
-#  # archive vidoes not uploaded by uploader
-#  errln "Archive before: $( <"${ARCHIVE}" wc -l ) entries"
-#  format_to_archive() { printf %s\\n "youtube ${1%.info.json}"; }
-#  {
-#    if "${_is_recompile}" || [ ! -e "${ARCHIVE}" ]
-#      then for_each "${INFO_DIR}" format_to_archive
-#      else cat "${ARCHIVE}"
-#    fi
-#    for_each "${NEW_DIR}" format_to_archive
-#  } | sort | uniq >"${ARCHIVE2}"
-#  mv "${ARCHIVE2}" "${ARCHIVE}"
-#  errln "Archive after:  $( <"${ARCHIVE}" wc -l ) entries"
 #}
 #
 #format_json() {

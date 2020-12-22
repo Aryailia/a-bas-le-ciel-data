@@ -1,4 +1,0 @@
-publish/*
-!publish/playlist.json
-pip/
-errors.log
