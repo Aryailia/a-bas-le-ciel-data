@@ -1,2 +1,4 @@
+publish/*
+!publish/playlist.json
 new/
 errors.log
