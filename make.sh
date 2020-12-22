@@ -160,11 +160,12 @@ download_by_rss() {
 
     curl -L "${rss}UCWPKJM4CT6ES2BrUz9wbELw" \
       | awk '$0 ~ "<link.*href=\"https://www.youtube.com/watch" {
-        gsub("^.*href=\"https://www.youtube.com/watch\?v=", "");
-        gsub(/".*/, "");
+        gsub(".*href=\"https://www\\.youtube\\.com/watch\\?v=", "");
+        gsub("\"/>$", "");
         print $0;
       }'
   ); do
+    [ "${#id}" != '11' ] && die FATAL 1 "Parse error of RSS feed: '${id}'"
     if [ ! -e "${INFO_DIR}/${id}.info.json" ]; then
       ytdl --write-info-json --skip-download --ignore-errors \
         --sub-lang en --write-auto-sub \
