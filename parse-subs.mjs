@@ -2,17 +2,17 @@ import { promises as Fs } from 'fs';
 //run: node % transcripts out
 
 const sub_dir = process.argv[2];
-const out_dir = process.argv[3];
+const out_path = process.argv[3];
 
 const webttv_list = await Fs.readdir(sub_dir);
-try {
-  await Fs.mkdir(out_dir);
-} catch (err) {
-  if (err.code != 'EEXIST') {
-    console.log(err);
-    process.exit(1);
-  }
-}
+//try {
+//  await Fs.mkdir(out);
+//} catch (err) {
+//  if (err.code != 'EEXIST') {
+//    console.log(err);
+//    process.exit(1);
+//  }
+//}
 
 const length = webttv_list.length;
 const result = new Array(length);
@@ -22,10 +22,18 @@ for (let i = 0; i < length; ++i) {
   if (filename.endsWith(".vtt")) {
     result[index] = Fs.readFile(`${sub_dir}/${filename}`, "UTF8")
       .then(parse_webvtt)
-      .then(transcript => Fs.writeFile(`${out_dir}/${filename}`, transcript, "UTF8"));
+      .then(text => ({
+        id: filename.substring(0, 11), // youtube ids are 11 characters
+        text,
+      }))
+      //.then(transcript => Fs.writeFile(`${out_dir}/${filename}`, transcript, "UTF8"));
     ++index;
   }
 }
+
+const output = await Promise.all(result);
+Fs.writeFile(out_path, JSON.stringify(output), "UTF8");
+
 
 function parse_webvtt(input_string) {
   if (typeof input_string !== "string") {

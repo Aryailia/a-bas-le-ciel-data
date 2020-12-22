@@ -21,6 +21,8 @@ SUBCOMMANDS
   supplement-subs
   cron
   sample
+  prepare-publish
+  publish           For manual publishing
 EOF
 }
 
@@ -29,6 +31,7 @@ NL='
 
 # --write-auto-sub not working in newest youtube-dl (15 Dec 2020)
 # BUG: 'youtube-dlc' does not provide title or id for playlists download
+# TODO: fix when youtube-dl fixes itself
 ytdl() {
   youtube-dlc -4 "$@" || exit "$?"
 }
@@ -63,23 +66,23 @@ main() {
 
 _make() {
   for arg in "$@"; do
-    errln "" "Running \`${NAME} ${arg}\`"
+    errln "Running \`${NAME} ${arg}\`"
     case "${arg}"
       in help)                    show_help
 
-      ;; download-channel)        download_by_channel "${CHANNEL_URL}" \
-                                    "${NEW_DIR}" "${SUB_DIR}"
+      ;; download-channel)        download_by_channel
       ;; download-rss)            download_by_rss
-      ;; download-playlist-list)  download_playlist_list "${CHANNEL_URL}"
+      ;; download-playlist-list)  download_playlist_list
       ;; compile)                 node parse-info.mjs "${INFO_DIR}" "${FINAL}"
       ;; mark-done)               mark_done
       ;; verify-have-subs)        verify_have_subs
       ;; supplement-subs)         supplement_subs
-      ;; clean-publish)           rm -r "${PUBLISH}"
+      ;; publish)                 _make prepare-publish; push_subtree 'compiled'
+      ;; clean-publish)           rm -r "${PUBLISH}"; git checkout "${PUBLISH}"
 
       ;; cron)
         # 'mark-done' will skip the 'publish' step if no new files
-        _make download-rss download-playlist-list mark-done || exit 0
+        _make download-rss download-playlist-list mark-done || exit "$?"
         git add "${INFO_DIR}" "${SUB_DIR}" "${PUBLISH}"
         git commit -m "update $( date "+%Y-%m-%d" )"
         git push origin master
@@ -91,51 +94,56 @@ _make() {
 
       ;; prepare-publish)
         rm -r "${PUBLISH}/transcripts" 2>/dev/null
-        mkdir -p "${PUBLISH}/transcripts"
-        node './parse-subs.mjs' "${SUB_DIR}" "${PUBLISH}/transcripts"
+        node './parse-subs.mjs' "${SUB_DIR}" "${PUBLISH}/transcripts.json"
         _make compile
+
+
 
       ;; *)  die FATAL 1 "Inavlid command \`${NAME} ${arg}\`"
     esac
+
+    [ "$#" = 0 ] || errln ''
   done
   # need 'if' to exit with 0 on no error
   if [ "$#" = 0 ]; then show_help; exit 1; fi
 }
 
-  ## Github uses the actions on the branch that is being pushed
-  ## Thus '.github/workflows' exists within ${PUBLISHED}
-  ## See: https://stackoverflow.com/questions/64565482
-  #ssh_push_subtree "./compiled" compiled 'a-bas-le-ciel-data' \
-  #  'git@github.com:Aryailia/a-bas-le-ciel-data.git' \
-  #  parse_subs_to_transcripts \
-  ## end
-#ssh_push_subtree() {
-#  # $1: the directory
-#  # $2: the branch name
-#  # $3: private key name
-#  # $4: remote ssh url tag
-#  # $5: extra commands to run after checks
-#
-#  [ -n "$( git status --short )" ] && die FATAL 1 \
-#    "Please commit changes before updating"
-#  [ -d "${publish}" ] && die FATAL 1 \
-#    "The directory '${publish}' exists but was reserved"
-#
-#
-#  rm -r "${PUBLISH}" 2>/dev/null
-#  cp -r "${1}" "${PUBLISH}"
-#  "${5}"
-#  exit
-#  git branch --force --delete "${2}"
-#  git add "${PUBLISH}"
-#  git commit -m 'publishing'
-#  git subtree split --prefix "${PUBLISH#./}" --branch="${2}"
-#  git reset HEAD^
-#  rm -r "${PUBLISH}"
-#  settings="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-#  GIT_SSH_COMMAND="ssh -i '${HOME}/.ssh/${3}' ${settings}" \
-#    git push -f "${4}" "${2}"
-#}
+## Github uses the actions on the branch that is being pushed
+## Thus '.github/workflows' exists within ${PUBLISHED}
+## See: https://stackoverflow.com/questions/64565482
+# old example:
+#ssh_push_subtree compiled "./compiled" 'a-bas-le-ciel-data' \
+#  'git@github.com:Aryailia/a-bas-le-ciel-data.git' \
+#  parse_subs_to_transcripts \
+## end
+push_subtree() {
+  # $1: branch name
+
+  # Not using these anymore
+  # 1: the directory
+  # 2: the branch name
+  # 3: private key name
+  # 4: remote ssh url tag
+
+  [ -n "$( git status --short )" ] && die FATAL 1 \
+    "Please commit changes before updating"
+
+  rm .gitignore  # Allow all of ${PUBLISH} to be pushed
+  git branch --force --delete "${1}" 2>/dev/null
+  git add "${PUBLISH}"
+  git commit -m "publishing $( date "+%Y-%m-%d" )" || exit "$?"  # no changes
+  git subtree split --prefix "${PUBLISH#./}" --branch="${1}"
+  git reset HEAD^
+  git push --force origin "${1}"
+
+  # Clean up
+  rm -r "${PUBLISH}"
+  git checkout .gitignore "${PUBLISH}"
+
+  #settings="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  #GIT_SSH_COMMAND="ssh -i '${HOME}/.ssh/${3}' ${settings}" \
+  #  git push -f "${4}" "${2}"
+}
 
 
 ################################################################################
@@ -179,25 +187,24 @@ download_by_rss() {
 
 # Clears error log everytime this runs
 download_by_channel() {
-  # $1: channel url
-
   errors="errors.log"
 
   printf %s '' >"${errors}"
   ytdl --write-info-json --skip-download --ignore-errors \
     --write-auto-sub --sub-lang en \
     --download-archive "${ARCHIVE}" \
-    --output "${2}/%(id)s" \
-    "${1}" \
+    --output "${NEW_DIR}/%(id)s" \
+    "${CHANNEL_URL}" \
     2>>"${errors}"
   move_subs_from_to "${NEW_DIR}" "${SUB_DIR}"
 }
 
 download_playlist_list() {
-  # $1: channel url
   # BUG: 'youtube-dlc' does not provide title or id
+  # See: https://github.com/blackjack4494/yt-dlc/issues/288
+  # TODO: Fix when this issue is resolved (should be resolved soon)
   dump="$( youtube-dl -4 --ignore-errors --dump-json --flat-playlist \
-    "${1}/playlists" )"
+    "${CHANNEL_URL}/playlists" )" || exit "$?"
   printf %s\\n "${dump}" | jq --slurp 'sort_by(.title)' >"${PLAYLIST}"
 }
 
@@ -209,7 +216,7 @@ mark_done() {
     [ -e "${file}" ] || continue
     count="$(( count + 1 ))"
   done
-  [ "${count}" = '0' ] && die "No files in '${NEW}' processed" 0
+  [ "${count}" = '0' ] && die "No files in '${NEW}' processed" 1
 
   errln "Archive before: $( <"${ARCHIVE}" wc -l ) entries"
   move_to_old() { mv "${NEW_DIR}/${1}" "${INFO_DIR}/${1}" || exit "$?"; }

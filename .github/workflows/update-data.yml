@@ -1,7 +1,7 @@
 name: Video metadata weekly download
 on:
   schedule:
-    - cron: "0 10 * * 2"  # Once a week on Wednesday at 9:00 UTC
+    - cron: "0 13 * * 2"  # Once a week on Wednesday at 9:00 UTC
 
 jobs:
   download_new_videos:
@@ -26,8 +26,24 @@ jobs:
         env:
           SSH_AUTH_SOCKET: /tmp/ssh_agent.sock
         run: |
-          sudo pip3 install youtube-dlc
+          # See: https://github.com/blackjack4494/yt-dlc/issues/288
+          sudo pip3 install youtube-dl youtube-dlc
 
           git config user.email "Bot@users.noreply.github.com"
           git config user.name "Continuous Integration Bot"
-          /bin/sh make.sh cron
+          /bin/sh make.sh cron || exit 0  # Errors if no files downloaded
+          # Terminate early if cron did not download new items
+          # This also will pushes changes to master if there are new items
+
+          # Push to 'compile' branch
+          git config user.email "Bot@users.noreply.github.com"
+          git config user.name "Continuous Integration Bot"
+          /bin/sh make.sh publish
+
+          # Signal update to aryailia.github.io
+          # TODO: consider just having website run a cron job as well
+          curl -X POST \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Authorization: token ${{ secrets.UPDATE_PAT_TOKEN }}" \
+          https://api.github.com/repos/Aryailia/aryailia.github.io/dispatches \
+          -d '{"event_type":"Update from a-bas-le-ciel-data"}'
