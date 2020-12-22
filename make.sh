@@ -48,7 +48,8 @@ main() {
 
   INTERIM="./output.json"
   FINAL="${PUBLISH}/video.json"
-  PLAYLIST="${PUBLISH}/playlist.json"
+  TRANSCRIPTS="${PUBLISH}/transcripts.json"
+  PLAYLISTS="${PUBLISH}/playlist.json"
   ARCHIVE="./archive.txt"
 
   CHANNEL_URL='https://www.youtube.com/user/HeiJinZhengZhi'
@@ -88,16 +89,16 @@ _make() {
         git push origin master
 
       ;; sample)
-        _make compile
+        _make prepare-publish
         jq '[limit(123; .[])]' "${FINAL}" >"../a-bas-le-ciel/video.json"
-        cp "${PLAYLIST}" "../a-bas-le-ciel/playlist.json"
+        jq '[limit(123; .[])]' "${TRANSCRIPTS}" >"../a-bas-le-ciel/transcripts.json"
+        cp "${PLAYLISTS}" "../a-bas-le-ciel/playlist.json"
+        _make clean-publish
 
       ;; prepare-publish)
-        rm -r "${PUBLISH}/transcripts" 2>/dev/null
-        node './parse-subs.mjs' "${SUB_DIR}" "${PUBLISH}/transcripts.json"
-        _make compile
-
-
+        node './parse-subs.mjs' "${SUB_DIR}" "${TRANSCRIPTS}"
+        _make compile  # make "${FINAL}"
+        # rely on exiting "${PLAYLISTS}"
 
       ;; *)  die FATAL 1 "Inavlid command \`${NAME} ${arg}\`"
     esac
@@ -205,7 +206,7 @@ download_playlist_list() {
   # TODO: Fix when this issue is resolved (should be resolved soon)
   dump="$( youtube-dl -4 --ignore-errors --dump-json --flat-playlist \
     "${CHANNEL_URL}/playlists" )" || exit "$?"
-  printf %s\\n "${dump}" | jq --slurp 'sort_by(.title)' >"${PLAYLIST}"
+  printf %s\\n "${dump}" | jq --slurp 'sort_by(.title)' >"${PLAYLISTS}"
 }
 
 ################################################################################
