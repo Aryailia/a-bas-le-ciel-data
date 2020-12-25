@@ -75,7 +75,7 @@ _make() {
       ;; download-channel)        download_by_channel
       ;; download-rss)            download_by_rss
       ;; download-playlist-list)  download_playlist_list
-      ;; compile)                 git show master:parse-info.mjs \
+      ;; compile)                 git show main:parse-info.mjs \
                                     | node - "${INFO_DIR}" "${FINAL}"
       ;; mark-done)               mark_done
       ;; verify-have-subs)        verify_have_subs
@@ -100,7 +100,7 @@ _make() {
 
       ;; prepare-publish)
         # rely on existing "${PLAYLISTS}"
-        git show master:parse-subs.mjs | node - "${SUB_DIR}" "${TRANSCRIPTS}"
+        git show main:parse-subs.mjs | node - "${SUB_DIR}" "${TRANSCRIPTS}"
         _make compile  # make "${FINAL}"
 
       ;; *)  die FATAL 1 "Inavlid command \`${NAME} ${arg}\`"
@@ -228,7 +228,10 @@ mark_done() {
     [ -e "${file}" ] || continue
     count="$(( count + 1 ))"
   done
-  [ "${count}" = '0' ] && die "No files in '${NEW}' processed" 1
+  if [ "${count}" = '0' ]; then
+    echo "up-to-date"
+    die "No files in '${NEW}' processed" 0
+  fi
 
   errln "Archive before: $( <"${ARCHIVE}" wc -l ) entries"
   move_to_old() { mv "${NEW_DIR}/${1}" "${INFO_DIR}/${1}" || exit "$?"; }
@@ -250,7 +253,7 @@ for_each() {
 
 
 compile() {
-  git show master:parse-info.mjs | node - "${INFO_DIR}" "${FINAL}"
+  git show main:parse-info.mjs | node - "${INFO_DIR}" "${FINAL}"
 }
 
 

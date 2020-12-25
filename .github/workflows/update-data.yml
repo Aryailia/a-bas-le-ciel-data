@@ -1,18 +1,15 @@
 name: Video metadata weekly download
 on:
+  workflow_dispatch:
   schedule:
-    - cron: "0 18 * * 3"  # Once a week on Wednesday at 13:00 UTC
+    - cron: "0 13 * * 2"  # Once a week on Tuesday at 13:00 UTC
 
 jobs:
   download_new_videos:
     runs-on: ubuntu-latest
     steps:
-      - name: Cloning master -> vm "./"
-        uses: actions/checkout@v2  # From the marketplace, by GitHub
-        with:
-          ref: data  # checkout to data branch
-
       - name: Verify then add GitHub SSH key
+        # Run this first so temp file does not conflict
         run: |
           [ "$( ssh-keyscan -t rsa github.com | tee github-key-temp | ssh-keygen -lf - 2>/dev/null )" \
           = "2048 SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8 github.com (RSA)" ] \
@@ -23,23 +20,37 @@ jobs:
           <<EOF ssh-add -
           ${{ secrets.RUNNER_PRIVATE_KEY }}
           EOF
+          rm github-key-temp
+
+      ## Checkout a second branch
+      ## TODO: https://github.com/actions/checkout/pull/155
+      - name: Fetching the "main" branch to "./"
+        uses: actions/checkout@v2  # From the marketplace, by GitHub
+        with:
+          ref: main  # checkout to data branch
+
+      # We want to be in data branch
+      - name: Fetching the "data" branch to "./"
+        run: |
+          git fetch --depth 1 origin data
+          git checkout data
+        # end up in 'data'
 
       - name: Download updates, commit, and push
         env:
           SSH_AUTH_SOCKET: /tmp/ssh_agent.sock
         run: |
           # See: https://github.com/blackjack4494/yt-dlc/issues/288
-          sudo pip3 install youtube-dl youtube-dlc
+          sudo -H pip3 install youtube-dl youtube-dlc
 
           git config user.email "Bot@users.noreply.github.com"
           git config user.name "Continuous Integration Bot"
-          /bin/sh make.sh cron || exit 0  # Errors if no files downloaded
+          status="$( /bin/sh make.sh cron )" || exit "$?"
+          [ "${status}" = "up-to-date" ] || exit 0  # Errors if no files downloaded
           # Terminate early if cron did not download new items
           # This also will pushes changes to master if there are new items
 
           # Push to 'compile' branch
-          git config user.email "Bot@users.noreply.github.com"
-          git config user.name "Continuous Integration Bot"
           /bin/sh make.sh publish
 
           # Signal update to aryailia.github.io
