@@ -386,6 +386,13 @@
   },
   {
     "_type": "url",
+    "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7pTyuUvXJWTShGmmW_yScwu",
+    "ie_key": "YoutubeTab",
+    "id": "PLZEkgohG7k7pTyuUvXJWTShGmmW_yScwu",
+    "title": "HasanAbi (Hasan Piker), Critique of"
+  },
+  {
+    "_type": "url",
     "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7pTUBiqpNlsuTrcY9dNIJR0",
     "ie_key": "YoutubeTab",
     "id": "PLZEkgohG7k7pTUBiqpNlsuTrcY9dNIJR0",
