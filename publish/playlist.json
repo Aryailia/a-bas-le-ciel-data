@@ -92,6 +92,13 @@
   },
   {
     "_type": "url",
+    "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7pJ5af8NAY0w1rx05oGlMjZ",
+    "ie_key": "YoutubeTab",
+    "id": "PLZEkgohG7k7pJ5af8NAY0w1rx05oGlMjZ",
+    "title": "Aristotle, critique of"
+  },
+  {
+    "_type": "url",
     "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7qveOlCsBIEyeJur1lAzwHB",
     "ie_key": "YoutubeTab",
     "id": "PLZEkgohG7k7qveOlCsBIEyeJur1lAzwHB",
