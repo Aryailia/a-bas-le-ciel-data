@@ -57,6 +57,13 @@
   },
   {
     "_type": "url",
+    "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7rCDejUL7t2n3UGBb-rP5-3",
+    "ie_key": "YoutubeTab",
+    "id": "PLZEkgohG7k7rCDejUL7t2n3UGBb-rP5-3",
+    "title": "Alain de Botton & The School of Life, critique of"
+  },
+  {
+    "_type": "url",
     "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7qU1WWi-h49Lvo_aZQ7MPAD",
     "ie_key": "YoutubeTab",
     "id": "PLZEkgohG7k7qU1WWi-h49Lvo_aZQ7MPAD",
