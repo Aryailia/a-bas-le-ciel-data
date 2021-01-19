@@ -526,6 +526,13 @@
   },
   {
     "_type": "url",
+    "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7opPrsd3D7n-xcQc0Wkd4YK",
+    "ie_key": "YoutubeTab",
+    "id": "PLZEkgohG7k7opPrsd3D7n-xcQc0Wkd4YK",
+    "title": "Klaus Mitchell of Plant Based News"
+  },
+  {
+    "_type": "url",
     "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7oxSZgO50bc0BGSXy3hErls",
     "ie_key": "YoutubeTab",
     "id": "PLZEkgohG7k7oxSZgO50bc0BGSXy3hErls",
