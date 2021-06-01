@@ -33,7 +33,7 @@ NL='
 # BUG: 'youtube-dlc' does not provide title or id for playlists download
 # TODO: fix when youtube-dl fixes itself
 ytdl() {
-  youtube-dlc -4 "$@" || exit "$?"
+  youtube-dl -4 "$@" || exit "$?"
 }
 
 main() {
