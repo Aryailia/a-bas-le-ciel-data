@@ -1,0 +1,37 @@
+This compiles all the metadata for the YouTube channel: https://www.youtube.com/user/HeiJinZhengZhi/videos[à-bas-le-ciel] to produce the https://aryailia.github.io/a-bas-le-ciel[a convenient index] with permission of the creator, Eisel Mazard.
+
+The big-picture setup of these two projects is to make use of GitHub actions to automatically poll YouTube and build the website video index.
+This projects handles the former.
+
+== Git Branch and Project Directory Layout
+
+There are three branches:
+
+* main - contains all the logic files
+* data - the raw downloaded meta data files
+* compiled - said data post-processing/-wrangling
+
+It is mostly structured in this way so that the compiled branch can be git cloned individually and, during development, to look after my personal computer's solid-state drive by not having to download thousands of files.
+
+For the data branch:
+
+* new - target for newly downloaded video metadata and subtitles
+* json - contain all each video's individual metadata
+* subtitles - contain all of YouTube's automatic subtitles
+* publish - where the processed data goes (temporarily as it is mostly is not committed to this branch)
+
+Files first are downloaded to the "new" directory, then are recorded to "archive.txt", then are moved to the appropriate "json" or "subtitles" directory, then are processed into a usable format for the website index into "publish".
+
+
+== Usage Notes
+
+There are types of data to download: 1) individual video metadata and 2) the names of playlists.
+
+. **Download step**: We employ two methods of downloading video metadata: 1) via RSS feed 2) youtube-dl's crawl of an entire channel (for a total of three download methods in the "make.sh" including playlists).
+Downloads files to "new" directory.
+. **Update archive.txt step**: This is file specified for youtube-dl to keep track of which vidoes to skip fetching the metadata for. This is the `make.sh mark-done` method.
+Moves files to the "json" and "subtitles" directories.
+. **Compile step**: `make.sh prepare-publish` (or `make.sh compile`, TODO: this separation probably needs to be cleaned up).
+Build from the "json" and "subtitles" directories into the "publish" directory.
+. **Publish step**: `make.sh publish` commits the "publish" directory to the "compiled" branch
+
