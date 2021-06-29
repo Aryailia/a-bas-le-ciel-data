@@ -372,6 +372,13 @@
   },
   {
     "_type": "url",
+    "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7pBuO3KU2tln9kOuRT2u1-T",
+    "ie_key": "YoutubeTab",
+    "id": "PLZEkgohG7k7pBuO3KU2tln9kOuRT2u1-T",
+    "title": "Evalion, critique of"
+  },
+  {
+    "_type": "url",
     "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7rE69S2fdmcRGJg2u4COrdr",
     "ie_key": "YoutubeTab",
     "id": "PLZEkgohG7k7rE69S2fdmcRGJg2u4COrdr",
