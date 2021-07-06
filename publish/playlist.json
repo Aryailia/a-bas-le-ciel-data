@@ -477,6 +477,13 @@
   },
   {
     "_type": "url",
+    "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7qlw9vSN9xhS5URP76lcdoY",
+    "ie_key": "YoutubeTab",
+    "id": "PLZEkgohG7k7qlw9vSN9xhS5URP76lcdoY",
+    "title": "I.Q. and Intelligence, critique of"
+  },
+  {
+    "_type": "url",
     "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7qiLiimIZDIgbaMqfPiS7iR",
     "ie_key": "YoutubeTab",
     "id": "PLZEkgohG7k7qiLiimIZDIgbaMqfPiS7iR",
