@@ -414,6 +414,13 @@
   },
   {
     "_type": "url",
+    "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7ph0hqZxyei_Sqp8V5mAQRw",
+    "ie_key": "YoutubeTab",
+    "id": "PLZEkgohG7k7ph0hqZxyei_Sqp8V5mAQRw",
+    "title": "Freedom of speech, critique of"
+  },
+  {
+    "_type": "url",
     "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7puUZvsGTnmI5I7ufuAoMXh",
     "ie_key": "YoutubeTab",
     "id": "PLZEkgohG7k7puUZvsGTnmI5I7ufuAoMXh",
@@ -530,6 +537,13 @@
     "ie_key": "YoutubeTab",
     "id": "PLZEkgohG7k7oTKn0Jg5Z_g18qqbeEPYIF",
     "title": "Jenna Marbles, Critique of"
+  },
+  {
+    "_type": "url",
+    "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7qRzkNMzx-HrQcpJW__Gk69",
+    "ie_key": "YoutubeTab",
+    "id": "PLZEkgohG7k7qRzkNMzx-HrQcpJW__Gk69",
+    "title": "Jimmy Dore, critique of"
   },
   {
     "_type": "url",
@@ -768,6 +782,13 @@
     "ie_key": "YoutubeTab",
     "id": "PLZEkgohG7k7rr7TxjwIaxe77Fj8y5o3Gk",
     "title": "Rachel Oates, critique of"
+  },
+  {
+    "_type": "url",
+    "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7pLWBzGHmZgYOYxmzVZ2MPt",
+    "ie_key": "YoutubeTab",
+    "id": "PLZEkgohG7k7pLWBzGHmZgYOYxmzVZ2MPt",
+    "title": "Rachel Ziegler, critique of"
   },
   {
     "_type": "url",
