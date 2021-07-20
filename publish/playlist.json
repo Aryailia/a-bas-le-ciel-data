@@ -239,6 +239,13 @@
   },
   {
     "_type": "url",
+    "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7pZIFWUTnXNwMwzPAQR21_V",
+    "ie_key": "YoutubeTab",
+    "id": "PLZEkgohG7k7pZIFWUTnXNwMwzPAQR21_V",
+    "title": "Climate change, critique of"
+  },
+  {
+    "_type": "url",
     "url": "https://www.youtube.com/playlist?list=PLZEkgohG7k7qp88PUxw93A5a0Ig52jnvL",
     "ie_key": "YoutubeTab",
     "id": "PLZEkgohG7k7qp88PUxw93A5a0Ig52jnvL",
